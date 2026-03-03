@@ -1,6 +1,16 @@
-# Event based roshambo demo
-Semester project developed for the ResProj course at Eurecom 
+# Event-Based Roshambo Demo
 
+This repository contains a desktop-based interactive demo of the "Rock-Paper-Scissors" game using an event camera.
+
+## Project Overview
+This project was developed as part of the **ResProj (Research Project) course at Eurecom**. 
+
+The goal of this work is to port and adapt the original gesture recognition pipeline developed for the [Dextra Roshambo](https://github.com/SensorsINI/dextra-roshambo-python) project into a real-time desktop application. By leveraging the low latency of event-based vision, the system can anticipate human gestures and respond instantly.
+
+### Key Modifications:
+* Migrated the event processing pipeline to the modern **DV software** framework.
+* Developed a custom GUI using **PyGame** for real-time visualization and user interaction.
+* Optimized the inference loop for desktop performance, removing external hardware dependencies (e.g., robotic arms).
 ## Setup
 
 
