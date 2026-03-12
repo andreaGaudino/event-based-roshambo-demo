@@ -102,4 +102,4 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
 
         pygame.display.flip()
         
-        clock.tick(30)    # 30FPS cicle (close to real world)
+        clock.tick(20)    # 30FPS cicle (close to real world)
