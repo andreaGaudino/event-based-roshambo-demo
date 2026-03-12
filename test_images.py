@@ -12,7 +12,8 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
                      voter, font_title, font_text, font_small, winning_imgs, 
                      SCREEN_W, SCREEN_H):
     
-    image_paths = sorted(glob.glob(os.path.join("sample_frames", "*.png")))
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    image_paths = sorted(glob.glob(os.path.join(base_dir, "sample_frames", "*.png")))
     if not image_paths:
         print("Error: image not found in sample_frames")
         return
@@ -48,7 +49,7 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
         # 4. GRAPHIC RENDER 
         screen.fill((40, 40, 40))   # filling the background with grey
         
-        # We dispaly the flow of images on the left 
+        # We display the flow of images on the left 
         img_size = int(SCREEN_H*0.65)
         cam_view = cv2.resize(img_resized, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
         cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
@@ -68,12 +69,13 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
             confirmed_move = PRED_TO_SYMBOL[final_vote_idx]
             winning_move = WINNING_MOVES[confirmed_move]
             
-            # Testi risultato
+            # Testing results
             txt_you = font_title.render(f"Your move: {confirmed_move.upper()}", True, (255, 255, 255))
             screen.blit(txt_you, (img_x, 10))
             
             txt_model = font_title.render(f"Model move: {winning_move.upper()}", True, (255, 200, 255))
-            winning_img_x = img_x + img_size + int(img_size)/10
+            winning_img_x = SCREEN_W - img_size - int(SCREEN_W/20)
+            #winning_img_x = img_x + img_size + int(img_size)/10
             screen.blit(txt_model, (winning_img_x, 10))
 
             # Display the winning image
@@ -93,15 +95,11 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
                 label = font_small.render(f"{PRED_TO_SYMBOL[i].upper()}", True, (200, 200, 200))
                 screen.blit(label, (img_x, start_y + i*40))
                 
-                # Calcola la lunghezza della barra
+                # bar lenght
                 bar_w = int(400 * float(pred_vector[i]))
                 color = (0, 200, 100) if bar_w > 15 else (200, 50, 50)
-                
-                # Disegna rettangolo barra
                 pygame.draw.rect(screen, color, (int(right/2) + 20, start_y + i*40, bar_w, 20))
 
-        # Aggiorna fisicamente lo schermo
         pygame.display.flip()
         
-        # Forza il ciclo a girare a ~30 FPS (Frames Per Second)
-        clock.tick(20)    
+        clock.tick(30)    # 30FPS cicle (close to real world)

@@ -18,7 +18,9 @@ from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_M
 def main():
     # 1. NN initialization
     print("Model loading...")
-    interpreter = tf.lite.Interpreter(model_path="model/dextra_roshambo.tflite")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "model", "dextra_roshambo.tflite")
+    interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -55,7 +57,7 @@ def main():
     print("Loading winning images...")
     winning_imgs = {}
     for move in ['rock', 'paper', 'scissors']:
-        img_path = os.path.join('symbols', f'{move}.png')
+        img_path = os.path.join(base_dir, 'symbols', f'{move}.png')
         if os.path.exists(img_path):
             img_surface = pygame.image.load(img_path).convert_alpha()  #convert_alpha handles images without background
             winning_imgs[move] = img_surface
