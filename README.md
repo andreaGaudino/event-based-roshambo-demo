@@ -9,7 +9,7 @@ The goal of this work is to port and adapt the original gesture recognition pipe
 
 ### Key Modifications:
 * Migrated the event processing pipeline to the modern **DV software** framework.
-* Developed a custom GUI using **PyGame** for real-time visualization and user interaction.
+* Developed a custom GUI using **Python OpenCV** for real-time visualization and user interaction.
 * Optimized the inference loop for desktop performance, removing external hardware dependencies (e.g., robotic arms).
 ## Setup
 
