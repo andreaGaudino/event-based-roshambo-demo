@@ -8,7 +8,8 @@ import tensorflow as tf
 import sys
 import ctypes
 from test_images import run_offline_mode
-from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_MOVES, CAMERA_ON
+from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_MOVES, CAMERA_ON, capture
+from read_camera import run_reading_camera_live
 
 
 
@@ -16,7 +17,6 @@ from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_M
 # --- MAIN GAME LOGIC ---
 
 def main():
-    # 1. NN initialization
     print("Model loading...")
     base_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(base_dir, "model", "dextra_roshambo.tflite")
@@ -27,8 +27,6 @@ def main():
 
     voter = majority_vote(window_length=5, num_classes=4)
 
-    # 2. PyGame initialization
-    pygame.init()
     if sys.platform.startswith('win'):
         try:
             user32 = ctypes.windll.user32
@@ -45,46 +43,48 @@ def main():
             root.destroy()
         except Exception:
             SCREEN_W, SCREEN_H = 1000, 800    
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("Event-Based Roshambo Demo")
     
-    # Fonts
-    font_title = pygame.font.SysFont(None, 60)
-    font_text = pygame.font.SysFont(None, 40)
-    font_small = pygame.font.SysFont(None, 24)
+    cv2.namedWindow("DAVIS Live", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("DAVIS Live", int(SCREEN_W), int(SCREEN_H))
+    screen = np.zeros((int(SCREEN_H), int(SCREEN_W), 3), dtype=np.uint8)
+    
 
-    # 3. Loading winning moves images
+    # Loading winning moves images
     print("Loading winning images...")
     winning_imgs = {}
     for move in ['rock', 'paper', 'scissors']:
         img_path = os.path.join(base_dir, 'symbols', f'{move}.png')
         if os.path.exists(img_path):
-            img_surface = pygame.image.load(img_path).convert_alpha()  #convert_alpha handles images without background
-            winning_imgs[move] = img_surface
+            winning_imgs[move] = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
-    clock = pygame.time.Clock() # To keep 30 FSP constant
+    #clock = pygame.time.Clock() # To keep 30 FSP constant
 
     if CAMERA_ON:
-        pass
+        run_reading_camera_live(capture=capture, 
+                                camera_name='DAVIS Live',
+                                screen=screen,
+                                interpreter=interpreter,
+                                input_details=input_details,
+                                output_details=output_details,
+                                voter=voter,
+                                winning_imgs=winning_imgs,
+                                SCREEN_W=SCREEN_W,
+                                SCREEN_H=SCREEN_H)
     else:
         run_offline_mode(
+            camera_name = 'DAVIS Live',
             screen=screen,
-            clock=clock,
             interpreter=interpreter,
             input_details=input_details,
             output_details=output_details,
             voter=voter,
-            font_title=font_title,
-            font_text=font_text,
-            font_small=font_small,
             winning_imgs=winning_imgs,
             SCREEN_W=SCREEN_W,
             SCREEN_H=SCREEN_H
         )
         
- 
+    cv2.destroyAllWindows()
 
-    pygame.quit()
 
 
 if __name__ == '__main__':

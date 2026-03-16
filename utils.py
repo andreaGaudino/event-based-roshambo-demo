@@ -3,11 +3,20 @@ import cv2
 import numpy as np
 import glob
 import os
+import dv_processing as dv
+
 
 
 # --- 1. COSTANTS ---
 IMSIZE = 64 # Image size requested by the Neural Network
 CAMERA_ON = False
+capture = None
+try:
+    capture = dv.io.camera.open()
+    print(f"Camera [{capture.getCameraName()}] connected!")
+    CAMERA_ON = True
+except Exception as e:
+    print(f"Error connecting the camera: {e}")
 
 # Predition map
 PRED_TO_SYMBOL = {

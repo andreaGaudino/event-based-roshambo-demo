@@ -8,9 +8,8 @@ from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_M
 
 
 
-def run_offline_mode(screen, clock, interpreter, input_details, output_details, 
-                     voter, font_title, font_text, font_small, winning_imgs, 
-                     SCREEN_W, SCREEN_H):
+def run_offline_mode(camera_name, screen, interpreter, input_details, output_details, 
+                     voter, winning_imgs, SCREEN_W, SCREEN_H):
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
     image_paths = sorted(glob.glob(os.path.join(base_dir, "sample_frames", "*.png")))
@@ -27,79 +26,99 @@ def run_offline_mode(screen, clock, interpreter, input_details, output_details,
         if not running:
             break
         
-        # 1. Handling quitting events (Click on 'X' on the window or typing 'Q')
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    running = False
-
-        # 2. Reading image with OpenCV (format needed by the NN)
+        # Reading image with OpenCV (format needed by the NN)
         frame = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         if frame is None:
             continue
-        
+        screen = np.zeros((int(SCREEN_H), int(SCREEN_W), 3), dtype=np.uint8)
         img_resized = cv2.resize(frame, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
         
-        # 3. Prediction phase
+        # Prediction phase
         pred_name, pred_idx, pred_vector = classify_img(img_resized, interpreter, input_details, output_details)
         final_vote_idx = voter.new_prediction_and_vote(pred_idx)
         
-        # 4. GRAPHIC RENDER 
-        screen.fill((40, 40, 40))   # filling the background with grey
         
         # We display the flow of images on the left 
-        img_size = int(SCREEN_H*0.65)
+        img_size = int(SCREEN_H*0.6)
         cam_view = cv2.resize(img_resized, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
         cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
         
-        # Pygame requires the image axis transposed
-        cam_view_transposed = np.transpose(cam_view_color, (1, 0, 2))
-        cam_surface = pygame.surfarray.make_surface(cam_view_transposed)
+
         img_x = int(SCREEN_W/20)
         img_y = int(SCREEN_H/15)
-        screen.blit(cam_surface, (img_x, img_y)) 
+        # Place cam view into screen (rows=y, cols=x)
+        screen[img_y:img_y + img_size, img_x: img_x + img_size] = cam_view_color
         
         # Writing the name of the file beneath the img
-        txt_file = font_small.render(f"File: {os.path.basename(img_path)}", True, (150, 150, 150))
-        screen.blit(txt_file, (img_x, img_y + img_size + 10))
+        txt_file = f"File: {os.path.basename(img_path)}"
+        cv2.putText(screen, txt_file, (img_x, img_y + img_size + img_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,150,150), 1)
 
         if final_vote_idx is not None:
             confirmed_move = PRED_TO_SYMBOL[final_vote_idx]
             winning_move = WINNING_MOVES[confirmed_move]
             
             # Testing results
-            txt_you = font_title.render(f"Your move: {confirmed_move.upper()}", True, (255, 255, 255))
-            screen.blit(txt_you, (img_x, 10))
+            txt_you = f"Your move: {confirmed_move.upper()}"
+            cv2.putText(screen, txt_you, (img_x, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             
-            txt_model = font_title.render(f"Model move: {winning_move.upper()}", True, (255, 200, 255))
+            txt_model = f"Model move: {winning_move.upper()}"
             winning_img_x = SCREEN_W - img_size - int(SCREEN_W/20)
-            #winning_img_x = img_x + img_size + int(img_size)/10
-            screen.blit(txt_model, (winning_img_x, 10))
+            cv2.putText(screen, txt_model, (int(winning_img_x), img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-            # Display the winning image
+            # Display the winning image (robust: handle alpha channel and out-of-bounds)
             if winning_move in winning_imgs:
                 winning_surface = winning_imgs[winning_move]
-                winning_img_resized = pygame.transform.smoothscale(winning_surface, (img_size, img_size))
-                screen.blit(winning_img_resized, (winning_img_x, img_y))
+                winning_img_resized = cv2.resize(winning_surface, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
+                y1 = int(img_y)
+                y2 = y1 + winning_img_resized.shape[0]
+                x1 = int(winning_img_x)
+                x2 = x1 + winning_img_resized.shape[1]
+                # If image has alpha channel, convert to RGB
+                if winning_img_resized.ndim == 3 and winning_img_resized.shape[2] == 4:
+                    b, g, r, a = cv2.split(winning_img_resized)
+                    alpha = (a.astype(float) / 255.0)[..., None]
+                    src_rgb = cv2.merge([b, g, r]).astype(float)
+                    dst_rgb = screen[y1:y2, x1:x2].astype(float)
+                    comp = src_rgb * alpha + dst_rgb * (1.0 - alpha)
+                    screen[y1:y2, x1:x2] = comp.astype(np.uint8)
+                else:
+                    # No alpha: attempt a simple chroma-key to ignore uniform background
+                    if win.ndim == 2:
+                        win = cv2.cvtColor(win, cv2.COLOR_GRAY2BGR)
+                    # take top-left pixel as background sample
+                    bg = win[0, 0].astype(int)
+                    diff = np.linalg.norm(win.astype(int) - bg, axis=2)
+                    mask = diff > 30  # threshold; tweak if needed
+                    # copy only pixels where mask is True
+                    dst = screen[y1:y2, x1:x2]
+                    for c in range(3):
+                        ch = dst[..., c]
+                        ch[mask] = win[..., c][mask]
+                        dst[..., c] = ch
+                    screen[y1:y2, x1:x2] = dst
 
             # Probabilities
-            txt_prob = font_text.render("Outcome probabilities:", True, (255, 255, 255))
-            text_rect = screen.blit(txt_prob, (img_x, img_y + img_size + 40))
-            left, top = text_rect.topleft
-            right, bottom = text_rect.bottomright
+            txt_prob = "Outcome probabilities:"
+            (text_width, text_height), _ = cv2.getTextSize(PRED_TO_SYMBOL[3].upper(), cv2.FONT_HERSHEY_SIMPLEX, 1, 1)  
+            cv2.putText(screen, txt_prob, (img_x, img_y + img_size + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            right = img_x + text_width 
             
-            start_y = img_y + img_size + 80
+            start_y = img_y + img_size + 80 +  text_height
             for i in range(len(pred_vector)):
-                label = font_small.render(f"{PRED_TO_SYMBOL[i].upper()}", True, (200, 200, 200))
-                screen.blit(label, (img_x, start_y + i*40))
-                
+                label = f"{PRED_TO_SYMBOL[i].upper()}"
+                cv2.putText(screen, label, (img_x, start_y + i*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 200, 200), 1)
+                (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
                 # bar lenght
                 bar_w = int(400 * float(pred_vector[i]))
-                color = (0, 200, 100) if bar_w > 15 else (200, 50, 50)
-                pygame.draw.rect(screen, color, (int(right/2) + 20, start_y + i*40, bar_w, 20))
+                color = (0, 200, 100) if bar_w > 15 else (50, 50, 200)
+                cv2.rectangle(screen, (right + 20, start_y + i*40 - label_height), (right + 20 + bar_w, start_y + i*40 + 10), color, -1)
 
-        pygame.display.flip()
         
-        clock.tick(20)    # 30FPS cicle (close to real world)
+        cv2.imshow(camera_name, screen)
+        key = cv2.waitKey(33) & 0xFF
+        if key == ord('q'):
+            running = False
+        if cv2.getWindowProperty(camera_name, cv2.WND_PROP_VISIBLE) < 1:
+            running = False
+
+        # clock.tick(20)    # 30FPS cicle (close to real world)
