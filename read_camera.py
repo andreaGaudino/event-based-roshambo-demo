@@ -48,7 +48,7 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             # Inverting black and white to have black on the background
             inverted = 255 - gray
 
-            # Binary treshold to get defined images
+            # Binary treshold to get defined images (removing noise)
             _, bw_inv = cv2.threshold(inverted, 30, 255, cv2.THRESH_BINARY)
             resized_img = cv2.resize(bw_inv, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
@@ -123,15 +123,9 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
 
             cv2.imshow(camera_name, screen)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                running = False
 
-            # If the user closed the OpenCV window (clicked the X), stop the loop
-            try:
-                if cv2.getWindowProperty(screen, cv2.WND_PROP_VISIBLE) < 1:
-                    running = False
-            except Exception:
-                pass
+
+            
 
     slicer = dv.EventStreamSlicer()
     # The slicer calls visualize_frame every 33ms (30 FPS)
@@ -141,9 +135,19 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
     try:
         while capture.isRunning() and running:
+            screen = np.zeros((int(SCREEN_H), int(SCREEN_W), 3), dtype=np.uint8)
             events = capture.getNextEventBatch()
             if events is not None and events.size() > 0:
                 slicer.accept(events)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                running = False
+
+            # If the user closed the OpenCV window (clicked the X), stop the loop
+            try:
+                if cv2.getWindowProperty(screen, cv2.WND_PROP_VISIBLE) < 1:
+                    running = False
+            except Exception:
+                pass
 
     except KeyboardInterrupt:
         print("\nReading interrupted.")
