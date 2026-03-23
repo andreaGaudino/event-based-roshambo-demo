@@ -115,7 +115,7 @@ def run_offline_mode(camera_name, screen, interpreter, input_details, output_det
 
         
         cv2.imshow(camera_name, screen)
-        key = cv2.waitKey(33) & 0xFF
+        key = cv2.waitKey(20) & 0xFF
         if key == ord('q'):
             running = False
         if cv2.getWindowProperty(camera_name, cv2.WND_PROP_VISIBLE) < 1:
