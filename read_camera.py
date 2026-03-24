@@ -1,3 +1,5 @@
+import time
+
 import dv_processing as dv
 import cv2
 import sys
@@ -21,14 +23,21 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
     resolution = capture.getEventResolution()
     visualizer = dv.visualization.EventVisualizer(resolution)
 
-    
+    img_size = int(SCREEN_H*0.6)
+    img_x = int(SCREEN_W/20)
+    img_y = int(SCREEN_H/15)
+    winning_img_x = SCREEN_W - img_size - int(SCREEN_W/20)
 
+    processed_winning_imgs = {}
+    for move, surface in winning_imgs.items():
+        processed_winning_imgs[move] = cv2.resize(surface, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
 
     running = True
 
 
     def visualize_frame(events):
         global running
+        screen.fill(0)
         if events.size() > 0:
             frame = visualizer.generateImage(events)
             if frame.dtype != np.uint8:
@@ -47,18 +56,18 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
             # Inverting black and white to have black on the background
             inverted = 255 - gray
-
             # Binary treshold to get defined images (removing noise)
             _, bw_inv = cv2.threshold(inverted, 30, 255, cv2.THRESH_BINARY)
+
+
             resized_img = cv2.resize(bw_inv, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
             final_vote_idx = voter.new_prediction_and_vote(pred_idx)
-            img_size = int(SCREEN_H*0.6)
+            
             cam_view = cv2.resize(resized_img, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
             cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
 
-            img_x = int(SCREEN_W/20)
-            img_y = int(SCREEN_H/15)
+            
             # Place cam view into screen (rows=y, cols=x)
             screen[img_y:img_y + img_size, img_x: img_x + img_size] = cam_view_color
             if final_vote_idx is not None:
@@ -70,7 +79,6 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
                 cv2.putText(screen, txt_you, (img_x, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
                 
                 txt_model = f"Model move: {winning_move.upper()}"
-                winning_img_x = SCREEN_W - img_size - int(SCREEN_W/20)
                 cv2.putText(screen, txt_model, (int(winning_img_x), img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
                 # Display the winning image (robust: handle alpha channel and out-of-bounds)
@@ -129,16 +137,19 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
     slicer = dv.EventStreamSlicer()
     # The slicer calls visualize_frame every 33ms (30 FPS)
-    slicer.doEveryTimeInterval(timedelta(milliseconds=33), visualize_frame)
+    # 33ms is probably not enough, trying with 40ms 
+    slicer.doEveryTimeInterval(timedelta(milliseconds=40), visualize_frame)
 
     print("Start reading in real time. Type 'q' to interrupt.")
 
     try:
         while capture.isRunning() and running:
-            screen = np.zeros((int(SCREEN_H), int(SCREEN_W), 3), dtype=np.uint8)
             events = capture.getNextEventBatch()
             if events is not None and events.size() > 0:
                 slicer.accept(events)
+            else:
+                time.sleep(0.001)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 running = False
 

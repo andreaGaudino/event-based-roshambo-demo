@@ -1,3 +1,5 @@
+import time
+
 import pygame
 import cv2
 import numpy as np
@@ -17,23 +19,28 @@ def run_offline_mode(camera_name, screen, interpreter, input_details, output_det
         print("Error: image not found in sample_frames")
         return
 
-    print(f"Found {len(image_paths)} images for testing. Starting PyGame...")
+    print(f"Found {len(image_paths)} images for testing. Starting...")
     
     running = True
+
+    prediction_time = []
 
     # --- GAME LOOP ---
     for img_path in image_paths:
         if not running:
             break
-        
+        start = time.time()
         # Reading image with OpenCV (format needed by the NN)
         frame = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         if frame is None:
             continue
+        #screen.fill(0)
         screen = np.zeros((int(SCREEN_H), int(SCREEN_W), 3), dtype=np.uint8)
+
         img_resized = cv2.resize(frame, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
         
         # Prediction phase
+        
         pred_name, pred_idx, pred_vector = classify_img(img_resized, interpreter, input_details, output_details)
         final_vote_idx = voter.new_prediction_and_vote(pred_idx)
         
@@ -106,7 +113,7 @@ def run_offline_mode(camera_name, screen, interpreter, input_details, output_det
             start_y = img_y + img_size + 80 +  text_height
             for i in range(len(pred_vector)):
                 label = f"{PRED_TO_SYMBOL[i].upper()}"
-                cv2.putText(screen, label, (img_x, start_y + i*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 200, 200), 1)
+                cv2.putText(screen, label, (img_x, start_y + i*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1)
                 (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
                 # bar lenght
                 bar_w = int(400 * float(pred_vector[i]))
@@ -115,10 +122,14 @@ def run_offline_mode(camera_name, screen, interpreter, input_details, output_det
 
         
         cv2.imshow(camera_name, screen)
+        end = time.time()
+
+        prediction_time.append(end-start)
         key = cv2.waitKey(20) & 0xFF
         if key == ord('q'):
             running = False
         if cv2.getWindowProperty(camera_name, cv2.WND_PROP_VISIBLE) < 1:
             running = False
+    print(f"Average prediction time: {np.average(prediction_time)*1000:.2f} ms")
 
         # clock.tick(20)    # 30FPS cicle (close to real world)
