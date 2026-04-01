@@ -1,25 +1,12 @@
 import time
-
 import dv_processing as dv
 import cv2
-import sys
 from datetime import timedelta
 import numpy as np
 from utils import IMSIZE, classify_img, PRED_TO_SYMBOL, WINNING_MOVES
 
 
 def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H):
-    # try:
-    #     capture = dv.io.camera.open()
-    #     print(f"Camera [{capture.getCameraName()}] connected!")
-    # except Exception as e:
-    #     print(f"Error connecting the camera: {e}")
-    #     sys.exit(1)
-
-    if not capture.isEventStreamAvailable():
-        print("The camera is not returning a stream of events.")
-        sys.exit(1)
-
     resolution = capture.getEventResolution()
     visualizer = dv.visualization.EventVisualizer(resolution)
 
@@ -138,7 +125,7 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
     slicer = dv.EventStreamSlicer()
     # The slicer calls visualize_frame every 33ms (30 FPS)
     # 33ms is probably not enough, trying with 40ms 
-    slicer.doEveryTimeInterval(timedelta(milliseconds=40), visualize_frame)
+    slicer.doEveryTimeInterval(timedelta(milliseconds=100), visualize_frame)
 
     print("Start reading in real time. Type 'q' to interrupt.")
 

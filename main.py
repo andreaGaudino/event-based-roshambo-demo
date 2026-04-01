@@ -3,7 +3,6 @@ import numpy as np
 import time
 import glob
 import os
-import pygame
 import tensorflow as tf
 import sys
 import ctypes

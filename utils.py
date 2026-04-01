@@ -1,4 +1,4 @@
-import pygame
+import sys
 import cv2
 import numpy as np
 import glob
@@ -11,12 +11,31 @@ import dv_processing as dv
 IMSIZE = 64 # Image size requested by the Neural Network
 CAMERA_ON = False
 capture = None
+# Set your DV TCP Server IP and Port
+TCP_IP = "127.0.0.1"
+TCP_PORT = 7777
+
+
 try:
-    capture = dv.io.camera.open()
-    print(f"Camera [{capture.getCameraName()}] connected!")
+    print(f"Attempting to connect to DV TCP Server at {TCP_IP}:{TCP_PORT}...")
+    # Replace standard camera capture with the TCP NetworkReader
+    capture = dv.io.NetworkReader(TCP_IP, TCP_PORT)
+    if not capture.isEventStreamAvailable():
+        print("The camera is not returning a stream of events.")
+        sys.exit(1)
+    print("Successfully connected to the TCP stream!")
     CAMERA_ON = True
 except Exception as e:
-    print(f"Error connecting the camera: {e}")
+    print(f"Error connecting to the TCP stream: {e}")
+    print("Falling back to offline mode. Ensure DV GUI is running and the TCP Server node is active.")
+
+
+# try:
+#     capture = dv.io.camera.open()
+#     print(f"Camera [{capture.getCameraName()}] connected!")
+#     CAMERA_ON = True
+# except Exception as e:
+#     print(f"Error connecting the camera: {e}")
 
 # Predition map
 PRED_TO_SYMBOL = {
