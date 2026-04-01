@@ -8,7 +8,7 @@ import sys
 import ctypes
 from test_images import run_offline_mode
 from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_MOVES, CAMERA_ON, capture
-from read_camera import run_reading_camera_live
+from read_camera_new import run_reading_camera_live
 
 
 
@@ -82,7 +82,7 @@ def main():
             SCREEN_H=SCREEN_H
         )
         
-    cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
 
 
 
