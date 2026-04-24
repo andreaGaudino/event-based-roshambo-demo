@@ -13,7 +13,7 @@ CAMERA_ON = False
 capture = None
 # Set your DV TCP Server IP and Port
 TCP_IP = "127.0.0.1"
-TCP_PORT = 7777
+TCP_PORT = 54722
 
 
 try:
