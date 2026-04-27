@@ -18,7 +18,6 @@ TCP_PORT = 54722
 
 try:
     print(f"Attempting to connect to DV TCP Server at {TCP_IP}:{TCP_PORT}...")
-    # Replace standard camera capture with the TCP NetworkReader
     capture = dv.io.NetworkReader(TCP_IP, TCP_PORT)
     if not capture.isEventStreamAvailable():
         print("The camera is not returning a stream of events.")
