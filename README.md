@@ -32,6 +32,25 @@ To install the library we use for the event camera:
 ###
     conda install -c conda-forge dv-processing -y
 
+## Event-Camera Setup
+
+To connect and stream data from the event-camera, you will need to install and configure the iniVation DV software.
+
+### 1. Install DV Software
+Download and install the DV software by following the instructions in the official documentation:
+[DV Software Installation Guide](https://docs.inivation.com/software/dv/gui/install.html)
+
+### 2. Configure the TCP Connection
+In order to transfer event data from the DV software to this demo, you need to set up a network connection:
+* Open the DV software.
+* Create a **TCP connection node**.
+* Assign an **IP address** and a **Port number** to this node.
+
+### 3. Update Project Settings
+Once your TCP node is configured, you need to link it to the project's code:
+* Open the `utils.py` file.
+* Update the file with the exact **IP address** and **Port number** you set in the DV software.
+
 ## How to run the code
 
 Simply execute on the terminal:
