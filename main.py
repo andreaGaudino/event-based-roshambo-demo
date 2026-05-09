@@ -6,6 +6,7 @@ import os
 import tensorflow as tf
 import sys
 import ctypes
+from datetime import datetime
 from test_images import run_offline_mode
 from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_MOVES, CAMERA_ON, capture
 from read_camera_new import run_reading_camera_live
@@ -58,31 +59,36 @@ def main():
 
     #clock = pygame.time.Clock() # To keep 30 FSP constant
 
-    if CAMERA_ON:
-        run_reading_camera_live(capture=capture, 
-                                camera_name='DAVIS Live',
-                                screen=screen,
-                                interpreter=interpreter,
-                                input_details=input_details,
-                                output_details=output_details,
-                                voter=voter,
-                                winning_imgs=winning_imgs,
-                                SCREEN_W=SCREEN_W,
-                                SCREEN_H=SCREEN_H)
-    else:
-        run_offline_mode(
-            camera_name = 'DAVIS Live',
-            screen=screen,
-            interpreter=interpreter,
-            input_details=input_details,
-            output_details=output_details,
-            voter=voter,
-            winning_imgs=winning_imgs,
-            SCREEN_W=SCREEN_W,
-            SCREEN_H=SCREEN_H
-        )
+    # if CAMERA_ON:
+    now = datetime.now()
+    file_name = f'{now.day}_{now.month}_{now.year}_{now.hour}_{now.minute}_{now.second}'
+    f = open(f'./statistics/{file_name}', 'a')
+    run_reading_camera_live(capture=capture, 
+                            camera_name='DAVIS Live',
+                            screen=screen,
+                            interpreter=interpreter,
+                            input_details=input_details,
+                            output_details=output_details,
+                            voter=voter,
+                            winning_imgs=winning_imgs,
+                            SCREEN_W=SCREEN_W,
+                            SCREEN_H=SCREEN_H,
+                            stats_file = f)
+    f.close()
+    # else:
+    #     run_offline_mode(
+    #         camera_name = 'DAVIS Live',
+    #         screen=screen,
+    #         interpreter=interpreter,
+    #         input_details=input_details,
+    #         output_details=output_details,
+    #         voter=voter,
+    #         winning_imgs=winning_imgs,
+    #         SCREEN_W=SCREEN_W,
+    #         SCREEN_H=SCREEN_H
+    #     )
         
-        cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
 
 
 

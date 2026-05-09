@@ -3,12 +3,12 @@ import threading
 import queue
 import dv_processing as dv
 import cv2
-from datetime import timedelta
+from datetime import timedelta, datetime
 import numpy as np
 from utils import IMSIZE, classify_img, PRED_TO_SYMBOL, WINNING_MOVES
 
 
-def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H):
+def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H, stats_file):    
     resolution = capture.getEventResolution()
     visualizer = dv.visualization.EventVisualizer(resolution)
 
@@ -40,14 +40,19 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             winning_masks[move] = diff > 30 # Create boolean mask from color difference
 
     running = True
+    start_time = None
+    print('starting clock')
+    previous_move = ''
 
     
 
     def visualize_frame(events):
-        global running
+        nonlocal running, previous_move, start_time
         screen.fill(0)
         if events.size() > 0:
             frame = visualizer.generateImage(events)
+            if not start_time:
+                start_time = events.getLowestTime() / 1e6
             if frame.dtype != np.uint8:
                 if frame.max() <= 1.0:
                     img = (frame * 255).astype(np.uint8)
@@ -70,6 +75,7 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             resized_img = cv2.resize(inverted, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
             final_vote_idx = voter.new_prediction_and_vote(pred_idx)
+            prediction_time = events.getLowestTime() / 1e6
             
             # cam_view = cv2.resize(resized_img, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
             # cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
@@ -86,12 +92,32 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
                 confirmed_move = PRED_TO_SYMBOL[final_vote_idx]
                 winning_move = WINNING_MOVES[confirmed_move]
                 
+                if winning_move != previous_move:
+                    print(f'{winning_move}, {prediction_time - start_time}', file=stats_file)
+                    previous_move = winning_move
+
+
+                color = (255, 255, 255)
                 # Testing results
                 txt_you = f"Your move: {confirmed_move.upper()}"
                 cv2.putText(screen, txt_you, (img_x, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
                 
-                txt_model = f"Model move: {winning_move.upper()}"
+
+                txt_model = f"Model move: "
+                (text_width, text_height), _ = cv2.getTextSize(txt_model, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
                 cv2.putText(screen, txt_model, (int(winning_img_x), img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+                if winning_move.upper() == 'ROCK':
+                    color = (0, 0, 255)
+                elif winning_move.upper() == 'PAPER':
+                    color = (0, 255, 0)
+                elif winning_move.upper() == 'SCISSORS':
+                    color = (255, 0, 0)
+                else:
+                    color = (255, 255, 255)
+                cv2.putText(screen, winning_move.upper(), (int(winning_img_x) + text_width, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
 
                 # Display the winning image (robust: handle alpha channel and out-of-bounds)
                 if winning_move in processed_winning_imgs:
@@ -133,7 +159,6 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
 
             
-
     slicer = dv.EventStreamSlicer()
     # The slicer calls visualize_frame every 33ms (30 FPS)
     # 33ms is probably not enough, trying with 40ms 
