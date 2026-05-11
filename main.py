@@ -60,9 +60,16 @@ def main():
     #clock = pygame.time.Clock() # To keep 30 FSP constant
 
     # if CAMERA_ON:
+    os.makedirs('./statistics', exist_ok=True)
     now = datetime.now()
-    file_name = f'{now.day}_{now.month}_{now.year}_{now.hour}_{now.minute}_{now.second}'
-    f = open(f'./statistics/{file_name}', 'a')
+    file_name = now.strftime('%Y_%m_%d_%H_%M_%S')
+
+    os.makedirs(f'./statistics/{file_name}', exist_ok=True)
+    f_csv = open(f'./statistics/{file_name}/{file_name}.csv', 'a', newline='')
+    f_txt = open(f'./statistics/{file_name}/{file_name}.txt', 'a')
+
+
+
     run_reading_camera_live(capture=capture, 
                             camera_name='DAVIS Live',
                             screen=screen,
@@ -73,8 +80,10 @@ def main():
                             winning_imgs=winning_imgs,
                             SCREEN_W=SCREEN_W,
                             SCREEN_H=SCREEN_H,
-                            stats_file = f)
-    f.close()
+                            csv_stats_file = f_csv,
+                            txt_stats_file = f_txt)
+    f_csv.close()
+    f_txt.close()
     # else:
     #     run_offline_mode(
     #         camera_name = 'DAVIS Live',

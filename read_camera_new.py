@@ -1,3 +1,4 @@
+import os
 import time
 import threading
 import queue
@@ -8,7 +9,7 @@ import numpy as np
 from utils import IMSIZE, classify_img, PRED_TO_SYMBOL, WINNING_MOVES
 
 
-def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H, stats_file):    
+def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H, csv_stats_file, txt_stats_file):    
     resolution = capture.getEventResolution()
     visualizer = dv.visualization.EventVisualizer(resolution)
 
@@ -39,20 +40,31 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             diff = np.linalg.norm(resized.astype(int) - bg, axis=2)
             winning_masks[move] = diff > 30 # Create boolean mask from color difference
 
-    running = True
-    start_time = None
-    print('starting clock')
-    previous_move = ''
+    print('time_passed_sec,event_count,rock_prob,paper_prob,scissors_prob,bg_prob,voter_status', file=csv_stats_file)
 
+    current_primary_gesture = 'background'
+    gesture_start_time = None
+    recording_start_time = None
+    running = True
+    directory = os.path.dirname(csv_stats_file.name)
+    os.makedirs(f'{directory}/frames', exist_ok=True)
     
 
     def visualize_frame(events):
-        nonlocal running, previous_move, start_time
+        nonlocal running, gesture_start_time, current_primary_gesture, recording_start_time, directory        
         screen.fill(0)
         if events.size() > 0:
             frame = visualizer.generateImage(events)
-            if not start_time:
-                start_time = events.getLowestTime() / 1e6
+
+            raw_timestamp = events.getHighestTime() / 1e6 
+            # ANCHOR THE START TIME
+            if recording_start_time is None:
+                recording_start_time = raw_timestamp
+                
+            time_passed_sec = raw_timestamp - recording_start_time
+            
+            event_count = events.size()
+
             if frame.dtype != np.uint8:
                 if frame.max() <= 1.0:
                     img = (frame * 255).astype(np.uint8)
@@ -75,7 +87,6 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             resized_img = cv2.resize(inverted, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
             final_vote_idx = voter.new_prediction_and_vote(pred_idx)
-            prediction_time = events.getLowestTime() / 1e6
             
             # cam_view = cv2.resize(resized_img, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
             # cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
@@ -83,19 +94,34 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             # screen[img_y:img_y + img_size, img_x: img_x + img_size] = cam_view_color
 
 
-            raw_cam_view = cv2.resize(img, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
+            max_confidence = pred_vector[pred_idx]
+            strong_prediction = pred_name if max_confidence > 0.80 else 'uncertain'
 
+            if strong_prediction != current_primary_gesture:
+                if strong_prediction not in ['background', 'uncertain']:
+                    current_primary_gesture = strong_prediction
+                    gesture_start_time = time_passed_sec
+                    filename = f"{directory}/frames/{gesture_start_time}_to_{strong_prediction}.png"
+                    cv2.imwrite(filename, inverted)  
+                    print(f"--- MOVEMENT TO '{strong_prediction.upper()}' DETECTED AT {gesture_start_time:.3f}s ---", file=txt_stats_file)
+                    
+                elif strong_prediction == 'background':
+                    current_primary_gesture = 'background'
+                    gesture_start_time = None
+                    print(f"--- RETURNED TO BACKGROUND ---", file=txt_stats_file)
+
+            voter_status = PRED_TO_SYMBOL[final_vote_idx] if final_vote_idx is not None else "pending"
+            
+            log_line = f"{time_passed_sec:.4f},{event_count},{pred_vector[2]:.4f},{pred_vector[0]:.4f},{pred_vector[1]:.4f},{pred_vector[3]:.4f},{voter_status}"
+            print(log_line, file=csv_stats_file)
+
+            raw_cam_view = cv2.resize(img, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
             #raw_cam_view_rgb = cv2.cvtColor(raw_cam_view, cv2.COLOR_BGR2RGB)
             screen[img_y:img_y + img_size, img_x:img_x + img_size] = 255 - raw_cam_view
 
             if final_vote_idx is not None:
                 confirmed_move = PRED_TO_SYMBOL[final_vote_idx]
                 winning_move = WINNING_MOVES[confirmed_move]
-                
-                if winning_move != previous_move:
-                    print(f'{winning_move}, {prediction_time - start_time}', file=stats_file)
-                    previous_move = winning_move
-
 
                 color = (255, 255, 255)
                 # Testing results
