@@ -1,3 +1,4 @@
+import argparse
 import cv2
 import numpy as np
 import time
@@ -14,9 +15,18 @@ from read_camera_new import run_reading_camera_live
 
 
 
+def parse_args():
+    p = argparse.ArgumentParser(description="Run the Roshambo demo")
+    #p.add_argument("--recording", type=bool, default=False, help='If the input is a recorded file, please type the --recording option')
+    p.add_argument("--recording", "-r", action="store_true",
+                   help='If set, record statistics to ./statistics')
+    return p.parse_args()
+
 # --- MAIN GAME LOGIC ---
 
 def main():
+    args = parse_args()
+    recording = args.recording
     print("Model loading...")
     base_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(base_dir, "model", "dextra_roshambo.tflite")
@@ -60,13 +70,16 @@ def main():
     #clock = pygame.time.Clock() # To keep 30 FSP constant
 
     # if CAMERA_ON:
-    os.makedirs('./statistics', exist_ok=True)
-    now = datetime.now()
-    file_name = now.strftime('%Y_%m_%d_%H_%M_%S')
+    f_csv = None
+    f_txt = None
+    if recording:
+        os.makedirs('./statistics', exist_ok=True)
+        now = datetime.now()
+        file_name = now.strftime('%Y_%m_%d_%H_%M_%S')
 
-    os.makedirs(f'./statistics/{file_name}', exist_ok=True)
-    f_csv = open(f'./statistics/{file_name}/{file_name}.csv', 'a', newline='')
-    f_txt = open(f'./statistics/{file_name}/{file_name}.txt', 'a')
+        os.makedirs(f'./statistics/{file_name}', exist_ok=True)
+        f_csv = open(f'./statistics/{file_name}/{file_name}.csv', 'a', newline='')
+        f_txt = open(f'./statistics/{file_name}/{file_name}.txt', 'a')
 
 
 
@@ -82,8 +95,9 @@ def main():
                             SCREEN_H=SCREEN_H,
                             csv_stats_file = f_csv,
                             txt_stats_file = f_txt)
-    f_csv.close()
-    f_txt.close()
+    if recording:
+        f_csv.close()
+        f_txt.close()
     # else:
     #     run_offline_mode(
     #         camera_name = 'DAVIS Live',

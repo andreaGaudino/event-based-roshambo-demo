@@ -40,18 +40,20 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             diff = np.linalg.norm(resized.astype(int) - bg, axis=2)
             winning_masks[move] = diff > 30 # Create boolean mask from color difference
 
-    print('time_passed_sec,event_count,rock_prob,paper_prob,scissors_prob,bg_prob,voter_status', file=csv_stats_file)
+    if csv_stats_file is not None:
+        print('time_passed_sec,event_count,rock_prob,paper_prob,scissors_prob,bg_prob,voter_status', file=csv_stats_file)
+        directory = os.path.dirname(csv_stats_file.name)
+        os.makedirs(f'{directory}/frames', exist_ok=True)
 
     current_primary_gesture = 'background'
     gesture_start_time = None
     recording_start_time = None
     running = True
-    directory = os.path.dirname(csv_stats_file.name)
-    os.makedirs(f'{directory}/frames', exist_ok=True)
+    
     
 
     def visualize_frame(events):
-        nonlocal running, gesture_start_time, current_primary_gesture, recording_start_time, directory        
+        nonlocal running, gesture_start_time, current_primary_gesture, recording_start_time, directory
         screen.fill(0)
         if events.size() > 0:
             frame = visualizer.generateImage(events)
@@ -82,9 +84,9 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             # Inverting black and white to have black on the background
             inverted = 255 - gray
             # Binary treshold to get defined images (removing noise)
-            #_, bw_inv = cv2.threshold(inverted, 20, 255, cv2.THRESH_BINARY)
+            _, bw_inv = cv2.threshold(inverted, 20, 255, cv2.THRESH_BINARY)
 
-            resized_img = cv2.resize(inverted, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
+            resized_img = cv2.resize(bw_inv, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
             final_vote_idx = voter.new_prediction_and_vote(pred_idx)
             
@@ -97,23 +99,25 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             max_confidence = pred_vector[pred_idx]
             strong_prediction = pred_name if max_confidence > 0.80 else 'uncertain'
 
-            if strong_prediction != current_primary_gesture:
+            if strong_prediction != current_primary_gesture and csv_stats_file is not None:
                 if strong_prediction not in ['background', 'uncertain']:
                     current_primary_gesture = strong_prediction
                     gesture_start_time = time_passed_sec
-                    filename = f"{directory}/frames/{gesture_start_time}_to_{strong_prediction}.png"
-                    cv2.imwrite(filename, inverted)  
+                    filename_events = f"{directory}/frames/{gesture_start_time}_to_{strong_prediction}.png"
+                    cv2.imwrite(filename_events, inverted)  
+                    
                     print(f"--- MOVEMENT TO '{strong_prediction.upper()}' DETECTED AT {gesture_start_time:.3f}s ---", file=txt_stats_file)
                     
                 elif strong_prediction == 'background':
-                    current_primary_gesture = 'background'
+                    #current_primary_gesture = 'background'
                     gesture_start_time = None
                     print(f"--- RETURNED TO BACKGROUND ---", file=txt_stats_file)
 
             voter_status = PRED_TO_SYMBOL[final_vote_idx] if final_vote_idx is not None else "pending"
             
-            log_line = f"{time_passed_sec:.4f},{event_count},{pred_vector[2]:.4f},{pred_vector[0]:.4f},{pred_vector[1]:.4f},{pred_vector[3]:.4f},{voter_status}"
-            print(log_line, file=csv_stats_file)
+            if csv_stats_file is not None:
+                log_line = f"{time_passed_sec:.4f},{event_count},{pred_vector[2]:.4f},{pred_vector[0]:.4f},{pred_vector[1]:.4f},{pred_vector[3]:.4f},{voter_status}"
+                print(log_line, file=csv_stats_file)
 
             raw_cam_view = cv2.resize(img, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
             #raw_cam_view_rgb = cv2.cvtColor(raw_cam_view, cv2.COLOR_BGR2RGB)
@@ -194,10 +198,10 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
     # Create a queue that only holds the 5 most recent batches
     event_queue = queue.Queue(maxsize=5)
-
+    
     def event_reader_thread():
         """Reads events from the camera as fast as possible in the background."""
-        while capture.isRunning() and running:
+        while (capture.isRunning() or not event_queue.empty()) and running:
             events = capture.getNextEventBatch()
             if events is not None and events.size() > 0:
                 # If the queue is full (processing is too slow), drop the oldest batch
