@@ -56,7 +56,7 @@ The goal of this work is to port and adapt the original gesture recognition pipe
 ## Setup
 
 
-Create a Miniconda/Anaconda enviroment as it is possible to install Python versions that are even not present on your PC, as an alternative you can use venv but ypu must use **Python 3.9**. If you do not have yet installed both of them: https://www.anaconda.com/download (Miniconda is suggested as it is way lighter).
+Create a Miniconda/Anaconda environment as it is possible to install Python versions that are even not present on your PC, as an alternative you can use venv but you must use **Python 3.9**. If you do not have yet installed both of them: https://www.anaconda.com/download (Miniconda is suggested as it is way lighter).
 
 Once installed: 
 ###
@@ -100,7 +100,7 @@ Then:
 ### 
     python main.py
 
-If you have a recorded video (option available on the DV software) it is possible to keep track of the statistic by running the following command:
+If you have a recorded video (option available on the DV software) it is possible to keep track of the statistics by running the following command:
 ### 
     python main.py --recording
 
