@@ -12,7 +12,7 @@ from src.utils import PRED_TO_SYMBOL
 from tqdm.keras import TqdmCallback
 
 
-def carica_dataset(file_base_path):
+def load_dataset(file_base_path):
     # ==========================================
     # 1. DEFINITION OF CLASSES
     # ==========================================
@@ -169,5 +169,5 @@ if __name__ == "__main__":
     # Replace with the path to the main folder that contains the 4 subfolders
     DATASET_DIRECTORY = "..\\aedat_files" 
     
-    X, Y = carica_dataset(DATASET_DIRECTORY)
+    X, Y = load_dataset(DATASET_DIRECTORY)
     fine_tune(X, Y)
