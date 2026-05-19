@@ -107,3 +107,12 @@ If you have a recorded video (option available on the DV software) it is possibl
 And it will save frames and all the movements in the `/statistics` folder.
 
 If you wish to quit the execution, press the 'q' key.
+
+## Acknowledgments
+* Original event-based gesture pipeline developed by the [SensorsINI team](https://github.com/SensorsINI/dextra-roshambo-python).
+* Developed as part of the ResProj (Research Project) course at Eurecom.
+
+## Author
+**Andrea Gaudino**
+* [LinkedIn Profile](https://www.linkedin.com/in/andrea-gaudino-848487345)
+* [GitHub Profile](https://github.com/andreaGaudino)
