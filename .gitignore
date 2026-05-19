@@ -5,5 +5,3 @@ __pycache__
 statistics/*
 
 *.pb
-
-read_camera_old.py

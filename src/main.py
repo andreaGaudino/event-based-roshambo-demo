@@ -28,8 +28,7 @@ def main():
     args = parse_args()
     recording = args.recording
     print("Model loading...")
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(base_dir, "model", "finetuned_model_dextra_roshambo.tflite")
+    model_path = os.path.join('..', "model", "finetuned_model_dextra_roshambo.tflite")
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
@@ -63,7 +62,7 @@ def main():
     print("Loading winning images...")
     winning_imgs = {}
     for move in ['rock', 'paper', 'scissors']:
-        img_path = os.path.join(base_dir, 'symbols', f'{move}.png')
+        img_path = os.path.join('..', 'assets', 'symbols', f'{move}.png')
         if os.path.exists(img_path):
             winning_imgs[move] = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
@@ -73,13 +72,12 @@ def main():
     f_csv = None
     f_txt = None
     if recording:
-        os.makedirs('./statistics', exist_ok=True)
         now = datetime.now()
         file_name = now.strftime('%Y_%m_%d_%H_%M_%S')
 
-        os.makedirs(f'./statistics/{file_name}', exist_ok=True)
-        f_csv = open(f'./statistics/{file_name}/{file_name}.csv', 'a', newline='')
-        f_txt = open(f'./statistics/{file_name}/{file_name}.txt', 'a')
+        os.makedirs(f'../statistics/{file_name}', exist_ok=True)
+        f_csv = open(f'../statistics/{file_name}/{file_name}.csv', 'a', newline='')
+        f_txt = open(f'../statistics/{file_name}/{file_name}.txt', 'a')
 
 
 

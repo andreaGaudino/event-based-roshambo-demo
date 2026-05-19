@@ -8,7 +8,7 @@ here = os.path.dirname(__file__)
 parent = os.path.abspath(os.path.join(here, ".."))
 if parent not in sys.path:
     sys.path.insert(0, parent)
-from utils import PRED_TO_SYMBOL
+from src.utils import PRED_TO_SYMBOL
 from tqdm.keras import TqdmCallback
 
 
