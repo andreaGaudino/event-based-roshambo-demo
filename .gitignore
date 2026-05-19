@@ -1,8 +1,9 @@
 .venv
-consumer.py
-main_old.py
+venv
 __pycache__
 
 statistics/*
+
+*.pb
 
 read_camera_old.py
