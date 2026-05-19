@@ -1,12 +1,15 @@
+import os
 import time
+import threading
+import queue
 import dv_processing as dv
 import cv2
-from datetime import timedelta
+from datetime import timedelta, datetime
 import numpy as np
 from utils import IMSIZE, classify_img, PRED_TO_SYMBOL, WINNING_MOVES
 
 
-def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H):
+def run_reading_camera_live(capture, camera_name, screen, interpreter, input_details, output_details, voter, winning_imgs, SCREEN_W, SCREEN_H, csv_stats_file, txt_stats_file):    
     resolution = capture.getEventResolution()
     visualizer = dv.visualization.EventVisualizer(resolution)
 
@@ -16,17 +19,54 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
     winning_img_x = SCREEN_W - img_size - int(SCREEN_W/20)
 
     processed_winning_imgs = {}
+    winning_masks = {}
+
     for move, surface in winning_imgs.items():
-        processed_winning_imgs[move] = cv2.resize(surface, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
+        # Resize once
+        resized = cv2.resize(surface, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
+        
+        # Pre-calculate masks once
+        if resized.ndim == 3 and resized.shape[2] == 4:
+            # Has alpha channel
+            b, g, r, a = cv2.split(resized)
+            processed_winning_imgs[move] = cv2.merge([b, g, r])
+            winning_masks[move] = a > 10 # Create boolean mask from alpha
+        else:
+            # No alpha channel: chroma-key the background once
+            if resized.ndim == 2:
+                resized = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
+            processed_winning_imgs[move] = resized
+            bg = resized[0, 0].astype(int)
+            diff = np.linalg.norm(resized.astype(int) - bg, axis=2)
+            winning_masks[move] = diff > 30 # Create boolean mask from color difference
 
+    if csv_stats_file is not None:
+        print('time_passed_sec,event_count,rock_prob,paper_prob,scissors_prob,bg_prob,voter_status', file=csv_stats_file)
+        directory = os.path.dirname(csv_stats_file.name)
+        os.makedirs(f'{directory}/frames', exist_ok=True)
+
+    current_primary_gesture = 'background'
+    gesture_start_time = None
+    recording_start_time = None
     running = True
-
+    
+    
 
     def visualize_frame(events):
-        global running
+        nonlocal running, gesture_start_time, current_primary_gesture, recording_start_time, directory
         screen.fill(0)
         if events.size() > 0:
             frame = visualizer.generateImage(events)
+
+            raw_timestamp = events.getHighestTime() / 1e6 
+            # ANCHOR THE START TIME
+            if recording_start_time is None:
+                recording_start_time = raw_timestamp
+                
+            time_passed_sec = raw_timestamp - recording_start_time
+            
+            event_count = events.size()
+
             if frame.dtype != np.uint8:
                 if frame.max() <= 1.0:
                     img = (frame * 255).astype(np.uint8)
@@ -44,61 +84,89 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
             # Inverting black and white to have black on the background
             inverted = 255 - gray
             # Binary treshold to get defined images (removing noise)
-            _, bw_inv = cv2.threshold(inverted, 30, 255, cv2.THRESH_BINARY)
-
+            _, bw_inv = cv2.threshold(inverted, 20, 255, cv2.THRESH_BINARY)
 
             resized_img = cv2.resize(bw_inv, (IMSIZE, IMSIZE), interpolation=cv2.INTER_AREA)
             pred_name, pred_idx, pred_vector = classify_img(resized_img, interpreter, input_details, output_details)
             final_vote_idx = voter.new_prediction_and_vote(pred_idx)
             
-            cam_view = cv2.resize(resized_img, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
-            cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
+            # cam_view = cv2.resize(resized_img, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
+            # cam_view_color = cv2.cvtColor(cam_view, cv2.COLOR_GRAY2RGB)
+            # # Place cam view into screen (rows=y, cols=x)
+            # screen[img_y:img_y + img_size, img_x: img_x + img_size] = cam_view_color
 
+
+            max_confidence = pred_vector[pred_idx]
+            strong_prediction = pred_name if max_confidence > 0.80 else 'uncertain'
+
+            if strong_prediction != current_primary_gesture and csv_stats_file is not None:
+                if strong_prediction not in ['background', 'uncertain']:
+                    current_primary_gesture = strong_prediction
+                    gesture_start_time = time_passed_sec
+                    filename_events = f"{directory}/frames/{gesture_start_time}_to_{strong_prediction}.png"
+                    cv2.imwrite(filename_events, inverted)  
+                    
+                    print(f"--- MOVEMENT TO '{strong_prediction.upper()}' DETECTED AT {gesture_start_time:.3f}s ---", file=txt_stats_file)
+                    
+                elif strong_prediction == 'background':
+                    #current_primary_gesture = 'background'
+                    gesture_start_time = None
+                    print(f"--- RETURNED TO BACKGROUND ---", file=txt_stats_file)
+
+            voter_status = PRED_TO_SYMBOL[final_vote_idx] if final_vote_idx is not None else "pending"
             
-            # Place cam view into screen (rows=y, cols=x)
-            screen[img_y:img_y + img_size, img_x: img_x + img_size] = cam_view_color
+            if csv_stats_file is not None:
+                log_line = f"{time_passed_sec:.4f},{event_count},{pred_vector[2]:.4f},{pred_vector[0]:.4f},{pred_vector[1]:.4f},{pred_vector[3]:.4f},{voter_status}"
+                print(log_line, file=csv_stats_file)
+
+            raw_cam_view = cv2.resize(img, (img_size, img_size), interpolation=cv2.INTER_LINEAR)
+            #raw_cam_view_rgb = cv2.cvtColor(raw_cam_view, cv2.COLOR_BGR2RGB)
+            screen[img_y:img_y + img_size, img_x:img_x + img_size] = 255 - raw_cam_view
+
             if final_vote_idx is not None:
                 confirmed_move = PRED_TO_SYMBOL[final_vote_idx]
                 winning_move = WINNING_MOVES[confirmed_move]
-                
+
+                color = (255, 255, 255)
                 # Testing results
                 txt_you = f"Your move: {confirmed_move.upper()}"
                 cv2.putText(screen, txt_you, (img_x, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
                 
-                txt_model = f"Model move: {winning_move.upper()}"
+
+                txt_model = f"Model move: "
+                (text_width, text_height), _ = cv2.getTextSize(txt_model, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
                 cv2.putText(screen, txt_model, (int(winning_img_x), img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
+                if winning_move.upper() == 'ROCK':
+                    color = (0, 0, 255)
+                elif winning_move.upper() == 'PAPER':
+                    color = (0, 255, 0)
+                elif winning_move.upper() == 'SCISSORS':
+                    color = (255, 0, 0)
+                else:
+                    color = (255, 255, 255)
+                cv2.putText(screen, winning_move.upper(), (int(winning_img_x) + text_width, img_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
+
                 # Display the winning image (robust: handle alpha channel and out-of-bounds)
-                if winning_move in winning_imgs:
-                    winning_surface = winning_imgs[winning_move]
-                    winning_img_resized = cv2.resize(winning_surface, (img_size, img_size), interpolation=cv2.INTER_NEAREST)
+                if winning_move in processed_winning_imgs:
+                    win_img = processed_winning_imgs[winning_move]
+                    win_mask = winning_masks[winning_move]
+                    
                     y1 = int(img_y)
-                    y2 = y1 + winning_img_resized.shape[0]
+                    y2 = y1 + img_size
                     x1 = int(winning_img_x)
-                    x2 = x1 + winning_img_resized.shape[1]
-                    # If image has alpha channel, convert to RGB
-                    if winning_img_resized.ndim == 3 and winning_img_resized.shape[2] == 4:
-                        b, g, r, a = cv2.split(winning_img_resized)
-                        alpha = (a.astype(float) / 255.0)[..., None]
-                        src_rgb = cv2.merge([b, g, r]).astype(float)
-                        dst_rgb = screen[y1:y2, x1:x2].astype(float)
-                        comp = src_rgb * alpha + dst_rgb * (1.0 - alpha)
-                        screen[y1:y2, x1:x2] = comp.astype(np.uint8)
-                    else:
-                        # No alpha: attempt a simple chroma-key to ignore uniform background
-                        if win.ndim == 2:
-                            win = cv2.cvtColor(win, cv2.COLOR_GRAY2BGR)
-                        # take top-left pixel as background sample
-                        bg = win[0, 0].astype(int)
-                        diff = np.linalg.norm(win.astype(int) - bg, axis=2)
-                        mask = diff > 30  # threshold; tweak if needed
-                        # copy only pixels where mask is True
-                        dst = screen[y1:y2, x1:x2]
-                        for c in range(3):
-                            ch = dst[..., c]
-                            ch[mask] = win[..., c][mask]
-                            dst[..., c] = ch
-                        screen[y1:y2, x1:x2] = dst
+                    x2 = x1 + img_size
+                    
+                    # Grab the background slice from the screen
+                    dst = screen[y1:y2, x1:x2]
+                    
+                    # Instantaneous numpy copy using the pre-calculated mask!
+                    dst[win_mask] = win_img[win_mask]
+                    
+                    # Put it back on the screen
+                    screen[y1:y2, x1:x2] = dst
 
                 # Probabilities
                 txt_prob = "Outcome probabilities:"
@@ -107,7 +175,7 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
                 right = img_x + text_width 
                 
                 start_y = img_y + img_size + 80 +  text_height
-                for i in range(len(pred_vector)):
+                for i in range(4):
                     label = f"{PRED_TO_SYMBOL[i].upper()}"
                     cv2.putText(screen, label, (img_x, start_y + i*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 200, 200), 1)
                     (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
@@ -121,28 +189,55 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
 
 
             
-
     slicer = dv.EventStreamSlicer()
     # The slicer calls visualize_frame every 33ms (30 FPS)
     # 33ms is probably not enough, trying with 40ms 
-    slicer.doEveryTimeInterval(timedelta(milliseconds=100), visualize_frame)
+    slicer.doEveryTimeInterval(timedelta(milliseconds=33), visualize_frame)
 
     print("Start reading in real time. Type 'q' to interrupt.")
 
-    try:
-        while capture.isRunning() and running:
+    # Create a queue that only holds the 5 most recent batches
+    event_queue = queue.Queue(maxsize=5)
+    
+    def event_reader_thread():
+        """Reads events from the camera as fast as possible in the background."""
+        while (capture.isRunning() or not event_queue.empty()) and running:
             events = capture.getNextEventBatch()
             if events is not None and events.size() > 0:
-                slicer.accept(events)
+                # If the queue is full (processing is too slow), drop the oldest batch
+                if event_queue.full():
+                    try:
+                        event_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                event_queue.put(events)
             else:
                 time.sleep(0.001)
 
+    # Start the background reading thread
+    reader = threading.Thread(target=event_reader_thread)
+    reader.daemon = True
+    reader.start()
+
+    # Main thread handles the processing and UI
+    try:
+        while capture.isRunning() and running:
+            try:
+                # Grab the latest events from our queue
+                events = event_queue.get(timeout=0.1)
+                
+                # The slicer will now process the events, and jump forward in time 
+                # if older events were dropped by the queue.
+                slicer.accept(events)
+            except queue.Empty:
+                pass # Queue is empty, just wait for the next loop
+
+            # Handle UI interrupts
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 running = False
 
-            # If the user closed the OpenCV window (clicked the X), stop the loop
             try:
-                if cv2.getWindowProperty(screen, cv2.WND_PROP_VISIBLE) < 1:
+                if cv2.getWindowProperty(camera_name, cv2.WND_PROP_VISIBLE) < 1:
                     running = False
             except Exception:
                 pass
@@ -150,5 +245,5 @@ def run_reading_camera_live(capture, camera_name, screen, interpreter, input_det
     except KeyboardInterrupt:
         print("\nReading interrupted.")
     finally:
+        running = False # Ensure the background thread shuts down
         cv2.destroyAllWindows()
-        

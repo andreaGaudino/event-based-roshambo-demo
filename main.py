@@ -10,7 +10,7 @@ import ctypes
 from datetime import datetime
 from test_images import run_offline_mode
 from utils import classify_img, majority_vote, IMSIZE, PRED_TO_SYMBOL, WINNING_MOVES, CAMERA_ON, capture
-from read_camera_new import run_reading_camera_live
+from read_camera import run_reading_camera_live
 
 
 
@@ -29,7 +29,7 @@ def main():
     recording = args.recording
     print("Model loading...")
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(base_dir, "model", "dextra_roshambo.tflite")
+    model_path = os.path.join(base_dir, "model", "finetuned_model_dextra_roshambo.tflite")
     interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()

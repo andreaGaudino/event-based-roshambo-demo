@@ -4,3 +4,5 @@ main_old.py
 __pycache__
 
 statistics/*
+
+read_camera_old.py
