@@ -1,6 +1,4 @@
 import time
-
-import pygame
 import cv2
 import numpy as np
 import glob
